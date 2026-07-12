@@ -109,8 +109,7 @@ export async function fetchPubMed(args: FetchArgs = {}): Promise<FetchResult> {
       isPreprint: false,
     }
     const entry = matchJournal(paper)
-    if (!entry) continue // enforce IF >= 4 allowlist
-    paper.impactFactor = entry.impactFactor
+    if (entry) paper.impactFactor = entry.impactFactor // IF filter applied client-side
     papers.push(paper)
   }
   return { papers, total, scanned: ids.length }

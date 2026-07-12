@@ -27,9 +27,13 @@ Papers are classified into three research areas — **Plant**, **Animal**,
   raises the per-source fetch limit, and the header shows the approximate total
   matches across sources. Refreshes automatically when local data is over a week
   old, plus a manual **Refresh now** button.
-- **Reputable journals only (IF ≥ 4)** — peer-reviewed results are filtered to a
-  curated allowlist of high-impact journals in the field (see caveat below).
-  **Preprints** deliberately bypass this rule and live in their own tab.
+- **Adjustable journal quality (IF ≥ 4 by default)** — peer-reviewed results are
+  filtered to a curated allowlist of high-impact journals (see caveat below), but
+  the **Journal quality** control lets you raise the bar (IF ≥ 10 / ≥ 20) or
+  drop it entirely (**All indexed journals**) to include venues outside the
+  allowlist. When the filter is on, a live "+ Show N more from journals outside
+  the IF ≥ 4 list" shortcut shows exactly how many papers relaxing it would add.
+  **Preprints** always bypass this rule and live in their own tab.
 - **Multi-label classification** — a paper can appear under more than one area
   (e.g. an in-vitro study of a mammalian protein is both *Animal* and
   *Biophysics*).

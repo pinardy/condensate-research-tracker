@@ -34,6 +34,8 @@ interface PaperState {
   sourceCounts: Record<SourceId, SourceCount>
   /** Current per-source fetch ceiling (raised by loadMore). */
   fetchLimit: number
+  /** Minimum journal Impact Factor to show; 0 = include all indexed journals. */
+  minIf: number
 
   /** Live "search all sources" state (not persisted). */
   searchQuery: string
@@ -43,6 +45,7 @@ interface PaperState {
   init: () => Promise<void>
   refresh: (force?: boolean) => Promise<void>
   loadMore: () => Promise<void>
+  setMinIf: (n: number) => void
   setSourceEnabled: (id: SourceId, on: boolean) => void
   /** Query enabled sources for a specific topic ANDed with the field terms. */
   searchSources: (query: string) => Promise<void>
@@ -74,6 +77,7 @@ export const usePapers = create<PaperState>()(
       sourceStatus: initialSourceStatus(),
       sourceCounts: initialSourceCounts(),
       fetchLimit: PAGE_SIZE,
+      minIf: 4,
       searchQuery: '',
       searchStatus: 'idle',
       searchResults: [],
@@ -114,7 +118,9 @@ export const usePapers = create<PaperState>()(
           if (r.status === 'fulfilled') {
             const papers = r.value.res.papers
             status[id] = papers.length ? 'ok' : 'empty'
-            counts[id] = { total: r.value.res.total, kept: papers.length }
+            // kept = records on the IF>=4 allowlist (preprints count as kept too).
+            const kept = papers.filter((p) => p.isPreprint || p.impactFactor != null).length
+            counts[id] = { total: r.value.res.total, kept }
             if (papers.length) anyOk = true
             fresh.push(...papers)
           } else {
@@ -139,6 +145,8 @@ export const usePapers = create<PaperState>()(
         set({ fetchLimit: get().fetchLimit + PAGE_SIZE })
         await get().refresh(true)
       },
+
+      setMinIf: (n) => set({ minIf: n }),
 
       setSourceEnabled: (id, on) => {
         const next = on
@@ -174,17 +182,23 @@ export const usePapers = create<PaperState>()(
     }),
     {
       name: 'crt-papers',
-      version: 3,
+      version: 4,
       partialize: (s) => ({
         cached: s.cached,
         lastFetched: s.lastFetched,
         enabledSources: s.enabledSources,
+        minIf: s.minIf,
       }),
       migrate: (persisted) => {
-        // Older versions predate some sources; reset cache and re-enable all
-        // sources so newly-added ones (e.g. OpenAlex) are included.
+        // Older caches only stored allowlisted papers; reset so the keep-all
+        // fetch repopulates, and re-enable all sources (e.g. OpenAlex).
         const p = (persisted ?? {}) as Partial<PaperState>
-        return { ...p, cached: [], lastFetched: null, enabledSources: DEFAULT_ENABLED } as PaperState
+        return {
+          ...p,
+          cached: [],
+          lastFetched: null,
+          enabledSources: DEFAULT_ENABLED,
+        } as PaperState
       },
       onRehydrateStorage: () => (state) => {
         if (state) state.papers = merge(state.cached)

@@ -161,9 +161,10 @@ async function fetchAll(args: FetchArgs, preprint: boolean): Promise<FetchResult
       scanned++
       const paper = normalizeResult(raw, preprint)
       if (!preprint) {
+        // Keep all records; tag IF when the journal is on the allowlist. The
+        // IF>=4 filter is applied later (client-side) so it can be relaxed.
         const entry = matchJournal(paper)
-        if (!entry) continue // not on the IF >= 4 allowlist
-        paper.impactFactor = entry.impactFactor
+        if (entry) paper.impactFactor = entry.impactFactor
       }
       collected.push(paper)
     }

@@ -777,3 +777,31 @@ a {
   font-size: 0.76rem;
   color: var(--text-dim);
 }
+
+/* Journal-quality control */
+.quality-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.quality-bar__field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.quality-bar__field select {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+.quality-bar__note {
+  font-size: 0.78rem;
+  color: var(--warn);
+}
