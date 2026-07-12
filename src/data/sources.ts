@@ -16,6 +16,8 @@ export interface SourceMeta {
     maxResults?: number
     extraQuery?: string
     signal?: AbortSignal
+    /** Opaque resume token from a prior fetch's `nextCursor` (incremental loads). */
+    cursor?: string
   }) => Promise<FetchResult>
 }
 

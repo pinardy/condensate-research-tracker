@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { Paper, SourceId } from '../data/types'
 import { DEFAULT_ENABLED, SOURCES, SOURCE_BY_ID } from '../data/sources'
 import { mergeAndClassify, refineSeed } from '../data/pipeline'
+import { dedupe } from '../data/classify'
 import { SEED_PAPERS } from '../data/seed'
 
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
@@ -19,8 +20,22 @@ export interface SourceCount {
 /** Refresh cadence: consider data stale after one week. */
 export const STALE_MS = 7 * 24 * 60 * 60 * 1000
 
-/** How many peer-reviewed records to request per source; grows via "Load more". */
+/** How many peer-reviewed records to request per source, per fetch batch.
+ *  "Load more" fetches another batch of this size from where each source left
+ *  off, rather than re-fetching everything from the start. */
 export const PAGE_SIZE = 250
+
+/** Upper bound on persisted live records, so localStorage can't grow without
+ *  bound as "Load more" accumulates pages. When exceeded, the most recent
+ *  papers (by year) are kept. The seed is separate and always merged in. */
+export const MAX_CACHED = 2500
+
+/** Dedupe the accumulating live cache and cap it to the most recent records. */
+function capCached(papers: Paper[]): Paper[] {
+  const deduped = dedupe(papers)
+  if (deduped.length <= MAX_CACHED) return deduped
+  return [...deduped].sort((a, b) => b.year - a.year).slice(0, MAX_CACHED)
+}
 
 interface PaperState {
   papers: Paper[]
@@ -32,8 +47,13 @@ interface PaperState {
   enabledSources: SourceId[]
   sourceStatus: Record<SourceId, SourceStatus>
   sourceCounts: Record<SourceId, SourceCount>
-  /** Current per-source fetch ceiling (raised by loadMore). */
-  fetchLimit: number
+  /**
+   * Per-source resume token for the next "Load more" page. Value semantics:
+   * absent = never fetched (start from the beginning); string = more pages
+   * available, resume here; null = fully exhausted, skip. Persisted alongside
+   * `cached` so paging continues across reloads instead of re-fetching page 1.
+   */
+  sourceCursors: Partial<Record<SourceId, string | null>>
   /** Minimum journal Impact Factor to show; 0 = include all indexed journals. */
   minIf: number
 
@@ -92,6 +112,80 @@ function computeNew(papers: Paper[], seenIds: string[]): { newIds: string[]; see
   return { newIds, seenIds: merged }
 }
 
+/**
+ * Fetch a batch from the given sources and fold the results into state.
+ * - `append: false` (refresh) — start each source from the beginning and
+ *   replace the cache.
+ * - `append: true` (loadMore / newly-enabled source) — resume each source from
+ *   its stored cursor and merge the new records into the existing cache.
+ */
+async function runFetch(
+  get: () => PaperState,
+  set: (partial: Partial<PaperState>) => void,
+  ids: SourceId[],
+  append: boolean,
+): Promise<void> {
+  if (get().status === 'loading') return
+  set({ status: 'loading', error: null })
+
+  const cursors = get().sourceCursors
+  const active = SOURCES.filter((s) => ids.includes(s.id))
+  const results = await Promise.allSettled(
+    active.map((s) =>
+      s.fetch({
+        maxResults: s.kind === 'preprint' ? Math.round(PAGE_SIZE / 2) : PAGE_SIZE,
+        cursor: append ? cursors[s.id] ?? undefined : undefined,
+      }),
+    ),
+  )
+
+  // In append mode preserve the status/counts of sources we didn't touch;
+  // in replace mode reset and mark not-requested sources disabled.
+  const enabled = get().enabledSources
+  const status = append ? { ...get().sourceStatus } : { ...initialSourceStatus() }
+  const counts = append ? { ...get().sourceCounts } : initialSourceCounts()
+  if (!append) for (const s of SOURCES) if (!enabled.includes(s.id)) status[s.id] = 'disabled'
+  const nextCursors = { ...get().sourceCursors }
+
+  const fresh: Paper[] = []
+  let anyOk = false
+  results.forEach((r, i) => {
+    const id = active[i].id
+    if (r.status === 'fulfilled') {
+      const { papers, total, nextCursor } = r.value
+      status[id] = papers.length ? 'ok' : 'empty'
+      // kept = records on the IF>=4 allowlist (preprints count as kept too).
+      const kept = papers.filter((p) => p.isPreprint || p.impactFactor != null).length
+      counts[id] = {
+        total: total ?? counts[id]?.total,
+        kept: (append ? counts[id]?.kept ?? 0 : 0) + kept,
+      }
+      // undefined nextCursor => source exhausted (store null so loadMore skips it).
+      nextCursors[id] = nextCursor ?? null
+      if (papers.length) anyOk = true
+      fresh.push(...papers)
+    } else {
+      status[id] = 'error' // network / CORS / API failure; leave cursor as-is to retry
+    }
+  })
+
+  // Keep the previous cache if nothing came back (offline / all blocked).
+  const base = append ? get().cached : []
+  const cached = fresh.length ? capCached([...base, ...fresh]) : get().cached
+  const papers = merge(cached)
+  set({
+    cached,
+    sourceStatus: status,
+    sourceCounts: counts,
+    sourceCursors: nextCursors,
+    lastFetched: anyOk ? Date.now() : get().lastFetched,
+    papers,
+    status: anyOk ? 'ready' : 'error',
+    error: anyOk ? null : 'Could not reach any enabled source; showing saved data.',
+    ...computeNew(papers, get().seenIds),
+  })
+}
+
 export const usePapers = create<PaperState>()(
   persist(
     (set, get) => ({
@@ -103,7 +197,7 @@ export const usePapers = create<PaperState>()(
       enabledSources: DEFAULT_ENABLED,
       sourceStatus: initialSourceStatus(),
       sourceCounts: initialSourceCounts(),
-      fetchLimit: PAGE_SIZE,
+      sourceCursors: {},
       minIf: 4,
       searchQuery: '',
       searchStatus: 'idle',
@@ -124,59 +218,14 @@ export const usePapers = create<PaperState>()(
       refresh: async (force = true) => {
         if (get().status === 'loading') return
         if (!force && get().lastFetched && Date.now() - get().lastFetched! < STALE_MS) return
-
-        const enabled = get().enabledSources
-        const limit = get().fetchLimit
-        set({ status: 'loading', error: null })
-
-        const active = SOURCES.filter((s) => enabled.includes(s.id))
-        const results = await Promise.allSettled(
-          active.map((s) =>
-            s
-              .fetch({ maxResults: s.kind === 'preprint' ? Math.round(limit / 2) : limit })
-              .then((res) => ({ id: s.id, res })),
-          ),
-        )
-
-        const status = { ...initialSourceStatus() }
-        const counts = initialSourceCounts()
-        for (const s of SOURCES) if (!enabled.includes(s.id)) status[s.id] = 'disabled'
-
-        const fresh: Paper[] = []
-        let anyOk = false
-        results.forEach((r, i) => {
-          const id = active[i].id
-          if (r.status === 'fulfilled') {
-            const papers = r.value.res.papers
-            status[id] = papers.length ? 'ok' : 'empty'
-            // kept = records on the IF>=4 allowlist (preprints count as kept too).
-            const kept = papers.filter((p) => p.isPreprint || p.impactFactor != null).length
-            counts[id] = { total: r.value.res.total, kept }
-            if (papers.length) anyOk = true
-            fresh.push(...papers)
-          } else {
-            status[id] = 'error' // network / CORS / API failure
-          }
-        })
-
-        // Keep the previous cache if nothing came back (offline / all blocked).
-        const cached = fresh.length ? fresh : get().cached
-        const papers = merge(cached)
-        set({
-          cached,
-          sourceStatus: status,
-          sourceCounts: counts,
-          lastFetched: anyOk ? Date.now() : get().lastFetched,
-          papers,
-          status: anyOk ? 'ready' : 'error',
-          error: anyOk ? null : 'Could not reach any enabled source; showing saved data.',
-          ...computeNew(papers, get().seenIds),
-        })
+        await runFetch(get, set, get().enabledSources, false)
       },
 
       loadMore: async () => {
-        set({ fetchLimit: get().fetchLimit + PAGE_SIZE })
-        await get().refresh(true)
+        // Only fetch sources that still have pages left (cursor not exhausted).
+        const ids = get().enabledSources.filter((id) => get().sourceCursors[id] !== null)
+        if (ids.length === 0) return
+        await runFetch(get, set, ids, true)
       },
 
       setMinIf: (n) => set({ minIf: n }),
@@ -186,8 +235,9 @@ export const usePapers = create<PaperState>()(
           ? [...new Set([...get().enabledSources, id])]
           : get().enabledSources.filter((s) => s !== id)
         set({ enabledSources: next })
-        // Fetch a newly-enabled source; toggling off just hides via the view.
-        if (on && SOURCE_BY_ID[id]) void get().refresh(true)
+        // Fetch only the newly-enabled source and merge it in; toggling off just
+        // hides its papers via the view. Avoids re-fetching every other source.
+        if (on && SOURCE_BY_ID[id]) void runFetch(get, set, [id], true)
       },
 
       searchSources: async (query) => {
@@ -227,6 +277,9 @@ export const usePapers = create<PaperState>()(
       version: 4,
       partialize: (s) => ({
         cached: s.cached,
+        // Kept in step with `cached` (both written together in runFetch) so a
+        // reload resumes paging where it left off rather than re-fetching page 1.
+        sourceCursors: s.sourceCursors,
         lastFetched: s.lastFetched,
         enabledSources: s.enabledSources,
         minIf: s.minIf,
@@ -244,9 +297,8 @@ export const usePapers = create<PaperState>()(
           enabledSources: DEFAULT_ENABLED,
         } as PaperState
       },
-      onRehydrateStorage: () => (state) => {
-        if (state) state.papers = merge(state.cached)
-      },
+      // No merge on rehydrate: init() (run on mount) merges cached + seed once,
+      // so merging here would just run the full dedupe/sort pipeline twice.
     },
   ),
 )

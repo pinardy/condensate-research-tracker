@@ -28,7 +28,7 @@ interface OAWork {
 }
 
 interface OAResponse {
-  meta?: { count?: number }
+  meta?: { count?: number; next_cursor?: string | null }
   results?: OAWork[]
 }
 
@@ -57,6 +57,8 @@ export interface FetchArgs {
   maxResults?: number
   extraQuery?: string
   signal?: AbortSignal
+  /** OpenAlex cursor to resume from (from a prior nextCursor); '*' = start. */
+  cursor?: string
 }
 
 export async function fetchOpenAlex(args: FetchArgs = {}): Promise<FetchResult> {
@@ -74,6 +76,7 @@ export async function fetchOpenAlex(args: FetchArgs = {}): Promise<FetchResult> 
     filter: 'has_abstract:true,type:article',
     sort: 'publication_date:desc',
     'per-page': String(perPage),
+    cursor: args.cursor || '*',
     select:
       'doi,title,display_name,publication_year,type,cited_by_count,authorships,abstract_inverted_index,primary_location',
     mailto: MAILTO,
@@ -112,5 +115,10 @@ export async function fetchOpenAlex(args: FetchArgs = {}): Promise<FetchResult> 
     if (entry) paper.impactFactor = entry.impactFactor // IF filter applied client-side
     papers.push(paper)
   }
-  return { papers, total: data.meta?.count, scanned: works.length }
+  return {
+    papers,
+    total: data.meta?.count,
+    scanned: works.length,
+    nextCursor: works.length ? data.meta?.next_cursor ?? undefined : undefined,
+  }
 }
