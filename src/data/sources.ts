@@ -11,7 +11,7 @@ export interface SourceMeta {
   shortLabel: string
   kind: SourceKind
   description: string
-  fetch: (args: { maxResults?: number; signal?: AbortSignal }) => Promise<Paper[]>
+  fetch: (args: { maxResults?: number; extraQuery?: string; signal?: AbortSignal }) => Promise<Paper[]>
 }
 
 export const SOURCES: SourceMeta[] = [

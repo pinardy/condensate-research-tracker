@@ -29,8 +29,14 @@ Papers are classified into three research areas — **Plant**, **Animal**,
 - **Multi-label classification** — a paper can appear under more than one area
   (e.g. an in-vitro study of a mammalian protein is both *Animal* and
   *Biophysics*).
-- **Browse & filter** — area tabs, full-text search (title / author / journal /
-  abstract), year filter, and newest/oldest sort.
+- **Browse & filter** — area tabs, instant local filter (title / author /
+  journal / abstract), year filter, and newest/oldest sort.
+- **Search all sources** — type a topic (e.g. `MYB`, a protein or organism) and
+  hit *Search all sources*: it runs a live query against every enabled source
+  for that topic **ANDed with** the phase-separation field terms, so specific
+  subjects surface even when they aren't in the default recent-papers window.
+  Results still pass the IF ≥ 4 allowlist; a banner shows the live-search state
+  and a Clear button returns to browsing.
 - **Bookmarks & folders** — save papers, create / rename / delete folders, move
   papers between folders, view them all. Stored locally (localStorage) and
   survives reloads and offline use.

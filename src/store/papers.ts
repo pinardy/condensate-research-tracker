@@ -21,9 +21,17 @@ interface PaperState {
   enabledSources: SourceId[]
   sourceStatus: Record<SourceId, SourceStatus>
 
+  /** Live "search all sources" state (not persisted). */
+  searchQuery: string
+  searchStatus: LoadStatus
+  searchResults: Paper[]
+
   init: () => Promise<void>
   refresh: (force?: boolean) => Promise<void>
   setSourceEnabled: (id: SourceId, on: boolean) => void
+  /** Query enabled sources for a specific topic ANDed with the field terms. */
+  searchSources: (query: string) => Promise<void>
+  clearSearch: () => void
 }
 
 const seed = refineSeed(SEED_PAPERS)
@@ -46,6 +54,9 @@ export const usePapers = create<PaperState>()(
       error: null,
       enabledSources: DEFAULT_ENABLED,
       sourceStatus: initialSourceStatus(),
+      searchQuery: '',
+      searchStatus: 'idle',
+      searchResults: [],
 
       init: async () => {
         set({ papers: merge(get().cached), status: 'ready' })
@@ -107,6 +118,29 @@ export const usePapers = create<PaperState>()(
         // Fetch a newly-enabled source; toggling off just hides via the view.
         if (on && SOURCE_BY_ID[id]) void get().refresh(true)
       },
+
+      searchSources: async (query) => {
+        const q = query.trim()
+        if (!q) {
+          get().clearSearch()
+          return
+        }
+        set({ searchQuery: q, searchStatus: 'loading' })
+        const active = SOURCES.filter((s) => get().enabledSources.includes(s.id))
+        const results = await Promise.allSettled(
+          active.map((s) => s.fetch({ maxResults: 100, extraQuery: q })),
+        )
+        // Ignore this response if the user changed the query meanwhile.
+        if (get().searchQuery !== q) return
+        const fresh = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
+        const anyFulfilled = results.some((r) => r.status === 'fulfilled')
+        set({
+          searchResults: mergeAndClassify(fresh),
+          searchStatus: anyFulfilled ? 'ready' : 'error',
+        })
+      },
+
+      clearSearch: () => set({ searchQuery: '', searchStatus: 'idle', searchResults: [] }),
     }),
     {
       name: 'crt-papers',

@@ -710,3 +710,46 @@ a {
   font-size: 0.68rem;
   padding: 1px 8px;
 }
+
+/* Search-all-sources */
+.filter-bar__searchwrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 260px;
+}
+.filter-bar__searchwrap .filter-bar__search {
+  /* Reset the row-layout flex basis so it isn't treated as height in the column. */
+  flex: 0 0 auto;
+  width: 100%;
+}
+.filter-bar__deep {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btn--brand {
+  background: var(--brand);
+  color: var(--brand-ink);
+  border-color: var(--brand);
+}
+
+.search-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, var(--border));
+}
+.search-banner.is-error {
+  background: var(--animal-bg);
+  border-color: color-mix(in srgb, var(--animal) 40%, var(--border));
+}

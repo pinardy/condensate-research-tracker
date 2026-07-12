@@ -17,10 +17,11 @@ export const DEFAULT_TERMS = [
 
 export function buildQuery(
   terms: string[] = DEFAULT_TERMS,
-  opts: { preprints?: boolean } = {},
+  opts: { preprints?: boolean; extraQuery?: string } = {},
 ): string {
   const src = opts.preprints ? 'AND SRC:PPR' : 'NOT SRC:PPR'
-  return `(${terms.join(' OR ')}) AND HAS_ABSTRACT:Y ${src}`
+  const extra = opts.extraQuery?.trim() ? ` AND (${opts.extraQuery.trim()})` : ''
+  return `(${terms.join(' OR ')}) AND HAS_ABSTRACT:Y${extra} ${src}`
 }
 
 /** Raw shape of a single `resultList.result[]` record (fields we use). */
@@ -125,11 +126,13 @@ export interface FetchArgs {
   pageSize?: number
   /** Stop after collecting roughly this many records. */
   maxResults?: number
+  /** Extra topic to AND into the query (live "search all sources"). */
+  extraQuery?: string
   signal?: AbortSignal
 }
 
 async function fetchAll(args: FetchArgs, preprint: boolean): Promise<Paper[]> {
-  const query = buildQuery(args.terms, { preprints: preprint })
+  const query = buildQuery(args.terms, { preprints: preprint, extraQuery: args.extraQuery })
   const pageSize = args.pageSize ?? 100
   const maxResults = args.maxResults ?? (preprint ? 120 : 300)
   const collected: Paper[] = []

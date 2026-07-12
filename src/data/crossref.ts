@@ -52,12 +52,18 @@ export interface FetchArgs {
   maxResults?: number
   /** ISO date lower bound; defaults to ~3 years ago. */
   fromPubDate?: string
+  extraQuery?: string
   signal?: AbortSignal
 }
 
 export async function fetchCrossref(args: FetchArgs = {}): Promise<Paper[]> {
-  const query = (args.terms ?? DEFAULT_TERMS)
-    .map((t) => t.replace(/"/g, ''))
+  // Crossref `query` is relevance search over all words (no strict boolean),
+  // so appending the topic biases results toward it.
+  const query = [
+    ...(args.terms ?? DEFAULT_TERMS).map((t) => t.replace(/"/g, '')),
+    args.extraQuery?.trim() ?? '',
+  ]
+    .filter(Boolean)
     .join(' ')
   const rows = args.maxResults ?? 150
   const from = args.fromPubDate ?? `${new Date().getFullYear() - 3}-01-01`

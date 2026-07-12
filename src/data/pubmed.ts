@@ -34,9 +34,10 @@ interface ESummaryResponse {
   result?: Record<string, ESummaryDoc | string[]>
 }
 
-function buildTerm(terms: string[]): string {
+function buildTerm(terms: string[], extraQuery?: string): string {
   // E-utilities accept the same quoted-phrase OR syntax.
-  return `(${terms.join(' OR ')}) AND hasabstract`
+  const extra = extraQuery?.trim() ? ` AND (${extraQuery.trim()})` : ''
+  return `(${terms.join(' OR ')}) AND hasabstract${extra}`
 }
 
 function parseYear(pubdate?: string): number {
@@ -47,6 +48,7 @@ function parseYear(pubdate?: string): number {
 export interface FetchArgs {
   terms?: string[]
   maxResults?: number
+  extraQuery?: string
   signal?: AbortSignal
 }
 
@@ -56,7 +58,7 @@ export async function fetchPubMed(args: FetchArgs = {}): Promise<Paper[]> {
 
   const searchParams = new URLSearchParams({
     db: 'pubmed',
-    term: buildTerm(terms),
+    term: buildTerm(terms, args.extraQuery),
     sort: 'date',
     retmax: String(retmax),
     retmode: 'json',

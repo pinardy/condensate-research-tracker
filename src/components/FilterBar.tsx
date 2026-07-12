@@ -8,6 +8,8 @@ export function FilterBar({
   onYear,
   sort,
   onSort,
+  onDeepSearch,
+  deepSearchLoading,
 }: {
   search: string
   onSearch: (v: string) => void
@@ -16,17 +18,36 @@ export function FilterBar({
   onYear: (v: number | 'all') => void
   sort: SortMode
   onSort: (v: SortMode) => void
+  /** Fire a live "search all sources" for the current text. */
+  onDeepSearch: () => void
+  deepSearchLoading: boolean
 }) {
+  const q = search.trim()
   return (
     <div className="filter-bar">
-      <input
-        type="search"
-        className="filter-bar__search"
-        placeholder="Search title, author, journal, abstract…"
-        value={search}
-        onChange={(e) => onSearch(e.target.value)}
-        aria-label="Search papers"
-      />
+      <div className="filter-bar__searchwrap">
+        <input
+          type="search"
+          className="filter-bar__search"
+          placeholder="Search title, author, journal, abstract…"
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && q) onDeepSearch()
+          }}
+          aria-label="Search papers"
+        />
+        {q && (
+          <button
+            type="button"
+            className="btn btn--brand btn--small filter-bar__deep"
+            onClick={onDeepSearch}
+            disabled={deepSearchLoading}
+          >
+            {deepSearchLoading ? 'Searching…' : `🔎 Search all sources for “${q}”`}
+          </button>
+        )}
+      </div>
       <label className="filter-bar__field">
         <span>Year</span>
         <select
