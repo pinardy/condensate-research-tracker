@@ -130,11 +130,28 @@ export function classify(p: Pick<Paper, 'title' | 'abstract'>): ResearchArea[] {
 
 // --- Dedup ------------------------------------------------------------------
 
+const unionProviders = (a: Paper, b: Paper) => [...new Set([...a.providers, ...b.providers])]
+
+/** Merge two records that refer to the same work. */
+function mergeRecords(a: Paper, b: Paper): Paper {
+  // Prefer a peer-reviewed record over a preprint as the base.
+  const [base, other] = a.isPreprint && !b.isPreprint ? [b, a] : [a, b]
+  return {
+    ...base,
+    abstract: base.abstract || other.abstract,
+    doi: base.doi || other.doi,
+    doiUrl: base.doiUrl || other.doiUrl,
+    issn: base.issn || other.issn,
+    essn: base.essn || other.essn,
+    impactFactor: base.impactFactor ?? other.impactFactor,
+    providers: unionProviders(a, b),
+  }
+}
+
 /**
- * Remove duplicate records. The same work often appears as a preprint and a
- * published article sharing a DOI. Key priority: lower-cased DOI -> source:id
- * -> normalized title. When two records collide, keep the one that has an
- * abstract (falling back to the first seen).
+ * Deduplicate across sources. Key priority: lower-cased DOI -> source:id ->
+ * normalized title. Colliding records are merged (providers unioned, richest
+ * metadata kept, peer-reviewed preferred over preprint).
  */
 export function dedupe(papers: Paper[]): Paper[] {
   const byKey = new Map<string, Paper>()
@@ -145,11 +162,18 @@ export function dedupe(papers: Paper[]): Paper[] {
         ? `id:${p.id}`
         : `title:${normalizeJournalName(p.title)}`
     const existing = byKey.get(key)
-    if (!existing) {
-      byKey.set(key, p)
-    } else if (!existing.abstract && p.abstract) {
-      byKey.set(key, p)
-    }
+    byKey.set(key, existing ? mergeRecords(existing, p) : p)
   }
   return [...byKey.values()]
+}
+
+/**
+ * Drop preprints whose title matches a peer-reviewed paper already in the set
+ * (the published version supersedes its preprint, even under a different DOI).
+ */
+export function dropSupersededPreprints(papers: Paper[]): Paper[] {
+  const publishedTitles = new Set(
+    papers.filter((p) => !p.isPreprint).map((p) => normalizeJournalName(p.title)),
+  )
+  return papers.filter((p) => !(p.isPreprint && publishedTitles.has(normalizeJournalName(p.title))))
 }

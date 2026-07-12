@@ -6,6 +6,9 @@ export const AREA_LABELS: Record<ResearchArea, string> = {
   biophysics: 'Biophysics',
 }
 
+/** Data-source adapters the app can fetch from. */
+export type SourceId = 'europepmc' | 'pubmed' | 'crossref' | 'preprints'
+
 /** A normalized research paper as displayed in the app. */
 export interface Paper {
   /** Stable unique key: `${source}:${id}` (Europe PMC) or `seed:<n>`. */
@@ -29,6 +32,12 @@ export interface Paper {
   areas: ResearchArea[]
   /** Approx Journal Impact Factor from the curated allowlist, when known. */
   impactFactor?: number
+  /** Which source adapters surfaced this paper (unioned on dedup). */
+  providers: SourceId[]
+  /** Preprint records bypass the IF>=4 allowlist and live in their own tab. */
+  isPreprint: boolean
+  /** e.g. "bioRxiv", "medRxiv" — set for preprints when detectable. */
+  preprintServer?: string
 }
 
 /** An entry in the curated "reputable journals (IF >= 4)" allowlist. */

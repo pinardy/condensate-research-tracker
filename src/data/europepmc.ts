@@ -1,5 +1,6 @@
 import type { Paper } from './types'
-import { classify, dedupe, isAllowedJournal, matchJournal } from './classify'
+import { detectPreprintServer } from './preprint'
+import { matchJournal } from './classify'
 
 const BASE = 'https://www.ebi.ac.uk/europepmc/webservices/rest/search'
 
@@ -14,8 +15,12 @@ export const DEFAULT_TERMS = [
   '"liquid-liquid phase transition"',
 ]
 
-export function buildQuery(terms: string[] = DEFAULT_TERMS): string {
-  return `(${terms.join(' OR ')}) AND HAS_ABSTRACT:Y`
+export function buildQuery(
+  terms: string[] = DEFAULT_TERMS,
+  opts: { preprints?: boolean } = {},
+): string {
+  const src = opts.preprints ? 'AND SRC:PPR' : 'NOT SRC:PPR'
+  return `(${terms.join(' OR ')}) AND HAS_ABSTRACT:Y ${src}`
 }
 
 /** Raw shape of a single `resultList.result[]` record (fields we use). */
@@ -39,6 +44,7 @@ interface RawResult {
       essn?: string
     }
   }
+  bookOrReportDetails?: { publisher?: string }
   pubTypeList?: { pubType?: string[] }
 }
 
@@ -83,8 +89,8 @@ export async function searchPage(
 }
 
 /** Convert a raw Europe PMC record into our normalized Paper (areas empty). */
-export function normalizeResult(raw: RawResult): Paper {
-  const journalTitle = raw.journalInfo?.journal?.title ?? 'Unknown journal'
+export function normalizeResult(raw: RawResult, preprint: boolean): Paper {
+  const journalTitle = raw.journalInfo?.journal?.title ?? (preprint ? 'Preprint' : 'Unknown journal')
   const yearNum =
     Number.parseInt(raw.pubYear ?? '', 10) ||
     raw.journalInfo?.yearOfPublication ||
@@ -108,26 +114,24 @@ export function normalizeResult(raw: RawResult): Paper {
     abstract: raw.abstractText,
     pubTypes: raw.pubTypeList?.pubType ?? [],
     areas: [],
+    providers: preprint ? ['preprints'] : ['europepmc'],
+    isPreprint: preprint,
+    preprintServer: preprint ? detectPreprintServer(doi, raw.bookOrReportDetails?.publisher) : undefined,
   }
 }
 
 export interface FetchArgs {
   terms?: string[]
   pageSize?: number
-  /** Stop after collecting roughly this many allowed papers. */
+  /** Stop after collecting roughly this many records. */
   maxResults?: number
   signal?: AbortSignal
 }
 
-/**
- * Fetch, filter to the curated allowlist, dedupe and classify. Paginates with
- * cursorMark, stopping when the target is reached, results run out, or the
- * cursor stops advancing.
- */
-export async function fetchPapers(args: FetchArgs = {}): Promise<Paper[]> {
-  const query = buildQuery(args.terms)
+async function fetchAll(args: FetchArgs, preprint: boolean): Promise<Paper[]> {
+  const query = buildQuery(args.terms, { preprints: preprint })
   const pageSize = args.pageSize ?? 100
-  const maxResults = args.maxResults ?? 300
+  const maxResults = args.maxResults ?? (preprint ? 120 : 300)
   const collected: Paper[] = []
   let cursorMark = '*'
 
@@ -141,30 +145,27 @@ export async function fetchPapers(args: FetchArgs = {}): Promise<Paper[]> {
     })
     if (results.length === 0) break
     for (const raw of results) {
-      const paper = normalizeResult(raw)
-      const entry = matchJournal(paper)
-      if (!entry) continue // not on the IF >= 4 allowlist
-      paper.impactFactor = entry.impactFactor
+      const paper = normalizeResult(raw, preprint)
+      if (!preprint) {
+        const entry = matchJournal(paper)
+        if (!entry) continue // not on the IF >= 4 allowlist
+        paper.impactFactor = entry.impactFactor
+      }
       collected.push(paper)
     }
     if (collected.length >= maxResults) break
     if (!nextCursorMark || nextCursorMark === cursorMark) break
     cursorMark = nextCursorMark
   }
-
-  return dedupe(collected)
-    .map((p) => ({ ...p, areas: classify(p) }))
-    .sort((a, b) => b.year - a.year)
+  return collected
 }
 
-/** Re-run allowlist filtering + classification on already-normalized papers. */
-export function refineSeed(papers: Paper[]): Paper[] {
-  return dedupe(papers.filter(isAllowedJournal)).map((p) => {
-    const entry = matchJournal(p)
-    return {
-      ...p,
-      impactFactor: p.impactFactor ?? entry?.impactFactor,
-      areas: p.areas.length ? p.areas : classify(p),
-    }
-  })
+/** Peer-reviewed Europe PMC records, filtered to the IF>=4 allowlist. */
+export function fetchEuropePmc(args: FetchArgs = {}): Promise<Paper[]> {
+  return fetchAll(args, false)
+}
+
+/** Preprints (bioRxiv/medRxiv etc.) via Europe PMC's SRC:PPR index. */
+export function fetchPreprints(args: FetchArgs = {}): Promise<Paper[]> {
+  return fetchAll(args, true)
 }

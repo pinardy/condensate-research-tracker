@@ -11,7 +11,10 @@ import type { Paper } from './types'
  * journals and years are real. `areas` are curated; the pipeline re-derives them
  * only if left empty.
  */
-type SeedInput = Omit<Paper, 'id' | 'doiUrl' | 'source' | 'pubTypes'> & {
+type SeedInput = Omit<
+  Paper,
+  'id' | 'doiUrl' | 'source' | 'pubTypes' | 'providers' | 'isPreprint' | 'preprintServer'
+> & {
   doi: string
 }
 
@@ -351,4 +354,6 @@ export const SEED_PAPERS: Paper[] = SEED.map((s, i) => ({
   source: 'SEED',
   doiUrl: `https://doi.org/${s.doi}`,
   pubTypes: ['Journal Article'],
+  providers: ['europepmc'],
+  isPreprint: false,
 }))

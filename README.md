@@ -12,12 +12,20 @@ Papers are classified into three research areas — **Plant**, **Animal**,
 
 ## Features
 
-- **Live research feed** — fetches papers directly from the free
-  [Europe PMC](https://europepmc.org) REST API in the browser (no backend, no
-  API key). Refreshes automatically when the local data is more than a week old,
+- **Multiple live sources** — fetches directly from several free, CORS-enabled
+  APIs in the browser (no backend, no API keys), merged and de-duplicated by DOI:
+  - **Europe PMC** — life-sciences literature (incl. MEDLINE/PubMed & PMC), full abstracts
+  - **PubMed** (NCBI E-utilities) — added coverage; abstracts filled in via dedup
+  - **Crossref** — cross-publisher DOI metadata
+  - **Preprints** — bioRxiv / medRxiv (via Europe PMC's preprint index)
+
+  Each source can be toggled on/off, every card shows which sources indexed it,
+  and per-source status dots show whether a source returned results, was empty,
+  or was unreachable. Refreshes automatically when local data is over a week old,
   plus a manual **Refresh now** button.
-- **Reputable journals only (IF ≥ 4)** — results are filtered to a curated
-  allowlist of high-impact journals in the field (see caveat below).
+- **Reputable journals only (IF ≥ 4)** — peer-reviewed results are filtered to a
+  curated allowlist of high-impact journals in the field (see caveat below).
+  **Preprints** deliberately bypass this rule and live in their own tab.
 - **Multi-label classification** — a paper can appear under more than one area
   (e.g. an in-vitro study of a mammalian protein is both *Animal* and
   *Biophysics*).
@@ -36,7 +44,6 @@ Papers are classified into three research areas — **Plant**, **Animal**,
 ## Getting started
 
 ```bash
-cd research-tracker
 npm install
 npm run dev        # http://localhost:5173
 ```
@@ -55,8 +62,11 @@ GitHub Pages, …). For GitHub Pages served from a subpath, build with the repo
 base path:
 
 ```bash
-BASE_PATH=/offline-dev-toolbox/ npm run build
+BASE_PATH=/condensate-research-tracker/ npm run build
 ```
+
+(The included GitHub Actions workflow does this automatically on every push to
+`main`, deriving the base path from the Pages URL.)
 
 ## Editing the journal allowlist
 
@@ -72,15 +82,36 @@ normalized journal title. The `impactFactor` value drives the on-card badge.
   indicative recent figures.
 - **Seed summaries** are editor-written summaries of each paper's main findings;
   papers fetched live instead display the journal's own abstract.
-- **CORS.** Europe PMC serves the REST API with permissive CORS, so the browser
-  fetch works with no proxy. If that ever changes, a small serverless proxy would
-  be the fallback.
+- **Sources & CORS.** Europe PMC and Crossref serve permissive CORS, so browser
+  fetch works with no proxy. **PubMed** (NCBI E-utilities) does not consistently
+  send CORS headers; the adapter is written defensively so that if the browser
+  blocks it, PubMed simply contributes nothing and the app falls back to the
+  other sources (its status dot turns red). PubMed's `esummary` also has no
+  abstract field, so PubMed-only records rely on dedup against Europe PMC/Crossref
+  for their summary.
+- **Preprints.** bioRxiv/medRxiv's own API has no keyword search, so preprints
+  are sourced through **Europe PMC's preprint index** (`SRC:PPR`), which covers
+  bioRxiv/medRxiv and returns abstracts. They bypass the IF ≥ 4 filter and are
+  clearly labelled and confined to the Preprints tab.
+- **Google Scholar** cannot be integrated: it has no public API and blocks
+  programmatic/browser access (no CORS + anti-bot). The only options are paid
+  server-side scrapers, incompatible with this no-backend PWA.
+
+## How sources are combined
+
+`src/data/sources.ts` registers each source adapter (`europepmc`, `pubmed`,
+`crossref`, `preprints`). The store fetches all enabled sources in parallel
+(`Promise.allSettled`, so one failing source never blocks the others), then
+`src/data/pipeline.ts` de-duplicates by DOI (falling back to normalized title),
+unions provenance, prefers the record with an abstract, drops preprints
+superseded by a published version, and classifies each paper into areas.
 
 ## Project structure
 
 ```
 src/
-  data/       types, Europe PMC client, journal allowlist, classifier, seed data
-  store/      Zustand stores (papers feed + bookmarks/folders, both persisted)
-  components/ Browse + Bookmarks UI
+  data/       types, source adapters (europepmc/pubmed/crossref), registry,
+              journal allowlist, classifier, merge pipeline, seed data
+  store/      Zustand stores (multi-source papers feed + bookmarks/folders)
+  components/ Browse (sources bar, area/preprints tabs) + Bookmarks UI
 ```

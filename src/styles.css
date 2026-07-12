@@ -13,6 +13,10 @@
   --animal-bg: #fef3c7;
   --biophysics: #2563eb;
   --biophysics-bg: #dbeafe;
+  --preprint: #9333ea;
+  --preprint-bg: #f3e8ff;
+  --ok: #16a34a;
+  --warn: #d97706;
   --danger: #dc2626;
   --radius: 12px;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 4px 12px rgba(16, 24, 40, 0.05);
@@ -35,6 +39,10 @@
     --animal-bg: #3a2a08;
     --biophysics: #60a5fa;
     --biophysics-bg: #10254a;
+    --preprint: #c084fc;
+    --preprint-bg: #2a1140;
+    --ok: #4ade80;
+    --warn: #fbbf24;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(0, 0, 0, 0.35);
   }
 }
@@ -601,4 +609,104 @@ a {
   .folders {
     position: static;
   }
+}
+
+/* Preprint + source styling */
+.badge--preprint {
+  color: var(--preprint);
+  background: var(--preprint-bg);
+}
+.area-tab--preprints.is-active {
+  background: var(--preprint);
+  border-color: var(--preprint);
+}
+
+.preprints-note {
+  margin: -6px 0 14px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  background: var(--preprint-bg);
+  border: 1px solid color-mix(in srgb, var(--preprint) 35%, var(--border));
+  border-radius: 10px;
+}
+
+/* Sources bar */
+.sources-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.sources-bar__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.sources-bar__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.source-chip.is-on {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--border));
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+}
+.source-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+.dot--ok {
+  background: var(--ok);
+}
+.dot--empty {
+  background: var(--warn);
+}
+.dot--error {
+  background: var(--danger);
+}
+.dot--disabled,
+.dot--idle {
+  background: var(--text-dim);
+  opacity: 0.5;
+}
+
+/* Provenance row on cards */
+.paper-card__sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.paper-card__sources-label {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.chip--source {
+  font-size: 0.68rem;
+  padding: 1px 8px;
 }

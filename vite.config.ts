@@ -37,16 +37,18 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
-            // Live research API: fresh when online, cached fallback when offline.
+            // Live research APIs: fresh when online, cached fallback when offline.
             urlPattern: ({ url }) =>
-              url.origin === 'https://www.ebi.ac.uk' &&
-              url.pathname.startsWith('/europepmc/webservices/rest/'),
+              (url.origin === 'https://www.ebi.ac.uk' &&
+                url.pathname.startsWith('/europepmc/webservices/rest/')) ||
+              url.origin === 'https://eutils.ncbi.nlm.nih.gov' ||
+              url.origin === 'https://api.crossref.org',
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'europepmc-api',
+              cacheName: 'research-api',
               networkTimeoutSeconds: 8,
               expiration: {
-                maxEntries: 64,
+                maxEntries: 96,
                 maxAgeSeconds: 60 * 60 * 24 * 14, // 2 weeks
               },
               cacheableResponse: { statuses: [0, 200] },
