@@ -288,6 +288,28 @@ a {
 .paper-list__sentinel {
   height: 1px;
 }
+.year-collapse {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 4px 0 28px;
+  padding: 11px 14px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.year-collapse:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+.year-collapse__chevron {
+  font-size: 0.7rem;
+}
 .paper-card__head {
   display: flex;
   align-items: center;
