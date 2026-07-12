@@ -34,9 +34,18 @@ export function PaperList({
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
   // Restart the window at the top whenever the result set or sort changes.
-  useEffect(() => setVisible(INITIAL), [groups])
+  // Adjusted during render (not in an effect) so we never commit a frame that
+  // shows the previous, larger window against the new result set.
+  const [prevGroups, setPrevGroups] = useState(groups)
+  if (groups !== prevGroups) {
+    setPrevGroups(groups)
+    setVisible(INITIAL)
+  }
 
   // Grow the window as the sentinel nears the viewport (prefetch via rootMargin).
+  // `visible` is intentionally a dependency: re-observing after each grow re-fires
+  // the callback while the sentinel is still in view, so a tall viewport keeps
+  // filling instead of stalling after a single step.
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return

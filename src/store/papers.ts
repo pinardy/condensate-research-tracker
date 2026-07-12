@@ -50,7 +50,8 @@ interface PaperState {
   /**
    * Per-source resume token for the next "Load more" page. Value semantics:
    * absent = never fetched (start from the beginning); string = more pages
-   * available, resume here; null = fully exhausted, skip. Not persisted.
+   * available, resume here; null = fully exhausted, skip. Persisted alongside
+   * `cached` so paging continues across reloads instead of re-fetching page 1.
    */
   sourceCursors: Partial<Record<SourceId, string | null>>
   /** Minimum journal Impact Factor to show; 0 = include all indexed journals. */
@@ -276,6 +277,9 @@ export const usePapers = create<PaperState>()(
       version: 4,
       partialize: (s) => ({
         cached: s.cached,
+        // Kept in step with `cached` (both written together in runFetch) so a
+        // reload resumes paging where it left off rather than re-fetching page 1.
+        sourceCursors: s.sourceCursors,
         lastFetched: s.lastFetched,
         enabledSources: s.enabledSources,
         minIf: s.minIf,
