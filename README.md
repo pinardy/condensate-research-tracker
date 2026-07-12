@@ -48,6 +48,14 @@ Papers are classified into three research areas — **Plant**, **Animal**,
 - **Bookmarks & folders** — save papers, create / rename / delete folders, move
   papers between folders, view them all. Stored locally (localStorage) and
   survives reloads and offline use.
+- **Stay-fresh tools:**
+  - **Saved searches** — save a topic search (e.g. `MYB`) and re-run it later
+    from a chips row; persisted across visits.
+  - **New since last visit** — papers not seen on your previous visit are badged
+    **New**, with a "Show only new (N)" toggle.
+  - **Shareable links** — the current area / topic / year / sort / IF filter is
+    encoded in the URL; **Copy link** shares that exact view, and opening such a
+    link restores it.
 - **Installable PWA** — web-app manifest + service worker (Workbox). The app
   shell is precached and API responses are cached (`NetworkFirst`), so it opens
   and shows the last data even offline.

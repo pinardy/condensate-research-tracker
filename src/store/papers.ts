@@ -42,6 +42,13 @@ interface PaperState {
   searchStatus: LoadStatus
   searchResults: Paper[]
 
+  /** Saved topic searches (persisted). */
+  savedSearches: string[]
+  /** All paper ids ever seen across visits (persisted). */
+  seenIds: string[]
+  /** Ids new since the previous visit (this session only). */
+  newIds: string[]
+
   init: () => Promise<void>
   refresh: (force?: boolean) => Promise<void>
   loadMore: () => Promise<void>
@@ -50,7 +57,12 @@ interface PaperState {
   /** Query enabled sources for a specific topic ANDed with the field terms. */
   searchSources: (query: string) => Promise<void>
   clearSearch: () => void
+  saveSearch: (query: string) => void
+  removeSavedSearch: (query: string) => void
 }
+
+// Snapshot of previously-seen ids, captured once per session (not persisted).
+let sessionSeen: Set<string> | null = null
 
 const seed = refineSeed(SEED_PAPERS)
 
@@ -63,6 +75,21 @@ const initialSourceCounts = (): Record<SourceId, SourceCount> =>
 function merge(cached: Paper[]): Paper[] {
   // Seed is always included; live/cached records dedupe against it.
   return mergeAndClassify([...cached, ...seed])
+}
+
+/**
+ * Given the current papers and the persisted seen-ids, compute which are new
+ * since the previous visit and return the updated seen list. On the very first
+ * visit (no seen ids yet) nothing is flagged as new.
+ */
+function computeNew(papers: Paper[], seenIds: string[]): { newIds: string[]; seenIds: string[] } {
+  if (sessionSeen === null) sessionSeen = new Set(seenIds)
+  const ids = papers.map((p) => p.id)
+  const firstVisit = sessionSeen.size === 0
+  const newIds = firstVisit ? [] : ids.filter((id) => !sessionSeen!.has(id))
+  // Cap the persisted set so it can't grow without bound.
+  const merged = [...new Set([...seenIds, ...ids])].slice(-8000)
+  return { newIds, seenIds: merged }
 }
 
 export const usePapers = create<PaperState>()(
@@ -81,9 +108,13 @@ export const usePapers = create<PaperState>()(
       searchQuery: '',
       searchStatus: 'idle',
       searchResults: [],
+      savedSearches: [],
+      seenIds: [],
+      newIds: [],
 
       init: async () => {
-        set({ papers: merge(get().cached), status: 'ready' })
+        const papers = merge(get().cached)
+        set({ papers, status: 'ready', ...computeNew(papers, get().seenIds) })
         const stale = !get().lastFetched || Date.now() - (get().lastFetched ?? 0) > STALE_MS
         if (stale && typeof navigator !== 'undefined' && navigator.onLine) {
           await get().refresh(false)
@@ -130,14 +161,16 @@ export const usePapers = create<PaperState>()(
 
         // Keep the previous cache if nothing came back (offline / all blocked).
         const cached = fresh.length ? fresh : get().cached
+        const papers = merge(cached)
         set({
           cached,
           sourceStatus: status,
           sourceCounts: counts,
           lastFetched: anyOk ? Date.now() : get().lastFetched,
-          papers: merge(cached),
+          papers,
           status: anyOk ? 'ready' : 'error',
           error: anyOk ? null : 'Could not reach any enabled source; showing saved data.',
+          ...computeNew(papers, get().seenIds),
         })
       },
 
@@ -179,6 +212,15 @@ export const usePapers = create<PaperState>()(
       },
 
       clearSearch: () => set({ searchQuery: '', searchStatus: 'idle', searchResults: [] }),
+
+      saveSearch: (query) => {
+        const q = query.trim()
+        if (!q) return
+        set({ savedSearches: [...new Set([q, ...get().savedSearches])].slice(0, 30) })
+      },
+
+      removeSavedSearch: (query) =>
+        set({ savedSearches: get().savedSearches.filter((s) => s !== query) }),
     }),
     {
       name: 'crt-papers',
@@ -188,6 +230,8 @@ export const usePapers = create<PaperState>()(
         lastFetched: s.lastFetched,
         enabledSources: s.enabledSources,
         minIf: s.minIf,
+        savedSearches: s.savedSearches,
+        seenIds: s.seenIds,
       }),
       migrate: (persisted) => {
         // Older caches only stored allowlisted papers; reset so the keep-all

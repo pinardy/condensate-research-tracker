@@ -2,10 +2,12 @@ import { useState } from 'react'
 import type { Paper } from '../data/types'
 import { AREA_LABELS } from '../data/types'
 import { SOURCE_BY_ID } from '../data/sources'
+import { usePapers } from '../store/papers'
 import { BookmarkButton } from './BookmarkButton'
 
 export function PaperCard({ paper }: { paper: Paper }) {
   const [open, setOpen] = useState(false)
+  const isNew = usePapers((s) => s.newIds.includes(paper.id))
   const abstract = paper.abstract?.trim()
   const isLong = (abstract?.length ?? 0) > 280
   const shown = !abstract
@@ -18,6 +20,7 @@ export function PaperCard({ paper }: { paper: Paper }) {
     <article className="paper-card">
       <div className="paper-card__head">
         <div className="paper-card__areas">
+          {isNew && <span className="badge badge--new">New</span>}
           {paper.isPreprint && <span className="badge badge--preprint">Preprint</span>}
           {paper.areas.map((a) => (
             <span key={a} className={`badge badge--${a}`}>

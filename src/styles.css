@@ -805,3 +805,80 @@ a {
   font-size: 0.78rem;
   color: var(--warn);
 }
+.quality-bar__share {
+  margin-left: auto;
+}
+
+/* "New since last visit" */
+.badge--new {
+  color: #fff;
+  background: var(--ok);
+}
+@media (prefers-color-scheme: dark) {
+  .badge--new {
+    color: #062012;
+  }
+}
+.new-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* Saved searches */
+.saved-searches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.saved-searches__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.saved-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.saved-chip.is-active {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+}
+.saved-chip__run {
+  border: none;
+  background: none;
+  color: var(--text);
+  padding: 5px 4px 5px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.saved-chip__x {
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  padding: 5px 10px 5px 6px;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.saved-chip__x:hover {
+  color: var(--danger);
+}
+
+.search-banner__actions {
+  display: flex;
+  gap: 8px;
+}
