@@ -11,6 +11,8 @@ export function BrowseView() {
   const papers = usePapers((s) => s.papers)
   const enabledSources = usePapers((s) => s.enabledSources)
   const init = usePapers((s) => s.init)
+  const loadMore = usePapers((s) => s.loadMore)
+  const status = usePapers((s) => s.status)
   const searchSources = usePapers((s) => s.searchSources)
   const clearSearch = usePapers((s) => s.clearSearch)
   const searchQuery = usePapers((s) => s.searchQuery)
@@ -121,6 +123,22 @@ export function BrowseView() {
         </p>
       )}
       <PaperList papers={filtered} sort={sort} />
+
+      {!searchMode && status !== 'idle' && (
+        <div className="load-more">
+          <button
+            type="button"
+            className="btn"
+            disabled={status === 'loading'}
+            onClick={() => void loadMore()}
+          >
+            {status === 'loading' ? 'Loading…' : 'Load more from sources'}
+          </button>
+          <span className="load-more__hint">
+            Widens the per-source fetch limit. Enable more sources above for broader coverage.
+          </span>
+        </div>
+      )}
     </div>
   )
 }

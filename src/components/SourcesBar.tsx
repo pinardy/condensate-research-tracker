@@ -12,6 +12,7 @@ const STATUS_TITLE: Record<SourceStatus, string> = {
 export function SourcesBar() {
   const enabled = usePapers((s) => s.enabledSources)
   const sourceStatus = usePapers((s) => s.sourceStatus)
+  const sourceCounts = usePapers((s) => s.sourceCounts)
   const setSourceEnabled = usePapers((s) => s.setSourceEnabled)
 
   return (
@@ -21,17 +22,29 @@ export function SourcesBar() {
         {SOURCES.map((s) => {
           const on = enabled.includes(s.id)
           const st = on ? sourceStatus[s.id] : 'disabled'
+          const c = sourceCounts[s.id]
+          const countLabel =
+            on && st === 'ok'
+              ? c?.total != null
+                ? ` ${c.kept}/${c.total.toLocaleString()}`
+                : ` ${c?.kept ?? 0}`
+              : ''
+          const countTitle =
+            on && c && (c.kept || c.total != null)
+              ? `\nKept ${c.kept}${c.total != null ? ` of ${c.total.toLocaleString()} topic matches` : ''} (IF≥4 filter)`
+              : ''
           return (
             <button
               key={s.id}
               type="button"
               className={`source-chip ${on ? 'is-on' : ''}`}
               aria-pressed={on}
-              title={`${s.description}\nStatus: ${STATUS_TITLE[st]}`}
+              title={`${s.description}\nStatus: ${STATUS_TITLE[st]}${countTitle}`}
               onClick={() => setSourceEnabled(s.id, !on)}
             >
               <span className={`source-chip__dot dot--${st}`} aria-hidden="true" />
               {s.shortLabel}
+              {countLabel && <span className="source-chip__count">{countLabel}</span>}
             </button>
           )
         })}

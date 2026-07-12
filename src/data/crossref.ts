@@ -1,4 +1,4 @@
-import type { Paper } from './types'
+import type { FetchResult, Paper } from './types'
 import { matchJournal } from './classify'
 import { DEFAULT_TERMS } from './europepmc'
 
@@ -19,7 +19,7 @@ interface CrossrefItem {
 }
 
 interface CrossrefResponse {
-  message?: { items?: CrossrefItem[] }
+  message?: { items?: CrossrefItem[]; 'total-results'?: number }
 }
 
 /** Strip JATS/XML tags from a Crossref abstract string. */
@@ -56,7 +56,7 @@ export interface FetchArgs {
   signal?: AbortSignal
 }
 
-export async function fetchCrossref(args: FetchArgs = {}): Promise<Paper[]> {
+export async function fetchCrossref(args: FetchArgs = {}): Promise<FetchResult> {
   // Crossref `query` is relevance search over all words (no strict boolean),
   // so appending the topic biases results toward it.
   const query = [
@@ -82,7 +82,9 @@ export async function fetchCrossref(args: FetchArgs = {}): Promise<Paper[]> {
     signal: args.signal,
   })
   if (!res.ok) throw new Error(`Crossref request failed: ${res.status}`)
-  const items = ((await res.json()) as CrossrefResponse).message?.items ?? []
+  const message = ((await res.json()) as CrossrefResponse).message
+  const items = message?.items ?? []
+  const total = message?.['total-results']
 
   const papers: Paper[] = []
   for (const item of items) {
@@ -110,5 +112,5 @@ export async function fetchCrossref(args: FetchArgs = {}): Promise<Paper[]> {
     paper.impactFactor = entry.impactFactor
     papers.push(paper)
   }
-  return papers
+  return { papers, total, scanned: items.length }
 }

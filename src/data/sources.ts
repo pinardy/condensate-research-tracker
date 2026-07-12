@@ -1,7 +1,8 @@
-import type { Paper, SourceId } from './types'
+import type { FetchResult, SourceId } from './types'
 import { fetchEuropePmc, fetchPreprints } from './europepmc'
 import { fetchPubMed } from './pubmed'
 import { fetchCrossref } from './crossref'
+import { fetchOpenAlex } from './openalex'
 
 export type SourceKind = 'peer' | 'preprint'
 
@@ -11,7 +12,11 @@ export interface SourceMeta {
   shortLabel: string
   kind: SourceKind
   description: string
-  fetch: (args: { maxResults?: number; extraQuery?: string; signal?: AbortSignal }) => Promise<Paper[]>
+  fetch: (args: {
+    maxResults?: number
+    extraQuery?: string
+    signal?: AbortSignal
+  }) => Promise<FetchResult>
 }
 
 export const SOURCES: SourceMeta[] = [
@@ -38,6 +43,14 @@ export const SOURCES: SourceMeta[] = [
     kind: 'peer',
     description: 'Cross-publisher DOI metadata. Abstracts where publishers deposit them.',
     fetch: fetchCrossref,
+  },
+  {
+    id: 'openalex',
+    label: 'OpenAlex',
+    shortLabel: 'OpenAlex',
+    kind: 'peer',
+    description: 'Very large open catalogue (~250M works). Broadens coverage substantially.',
+    fetch: fetchOpenAlex,
   },
   {
     id: 'preprints',

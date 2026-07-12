@@ -17,12 +17,16 @@ Papers are classified into three research areas — **Plant**, **Animal**,
   - **Europe PMC** — life-sciences literature (incl. MEDLINE/PubMed & PMC), full abstracts
   - **PubMed** (NCBI E-utilities) — added coverage; abstracts filled in via dedup
   - **Crossref** — cross-publisher DOI metadata
+  - **OpenAlex** — very large open catalogue (~250M works) for broad coverage; abstracts reconstructed from its inverted index
   - **Preprints** — bioRxiv / medRxiv (via Europe PMC's preprint index)
 
-  Each source can be toggled on/off, every card shows which sources indexed it,
-  and per-source status dots show whether a source returned results, was empty,
-  or was unreachable. Refreshes automatically when local data is over a week old,
-  plus a manual **Refresh now** button.
+  Each source can be toggled on/off; every card shows which sources indexed it;
+  per-source status dots show whether a source returned results, was empty, or
+  was unreachable, and each chip shows a `kept/total` count so you can see how
+  much the IF filter and fetch limit are trimming. **Load more from sources**
+  raises the per-source fetch limit, and the header shows the approximate total
+  matches across sources. Refreshes automatically when local data is over a week
+  old, plus a manual **Refresh now** button.
 - **Reputable journals only (IF ≥ 4)** — peer-reviewed results are filtered to a
   curated allowlist of high-impact journals in the field (see caveat below).
   **Preprints** deliberately bypass this rule and live in their own tab.

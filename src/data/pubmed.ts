@@ -1,4 +1,4 @@
-import type { Paper } from './types'
+import type { FetchResult, Paper } from './types'
 import { matchJournal } from './classify'
 import { DEFAULT_TERMS } from './europepmc'
 
@@ -16,7 +16,7 @@ const ESUMMARY = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi'
  * yields nothing and the app falls back to the others.
  */
 interface ESearchResponse {
-  esearchresult?: { idlist?: string[] }
+  esearchresult?: { idlist?: string[]; count?: string }
 }
 
 interface ESummaryDoc {
@@ -52,7 +52,7 @@ export interface FetchArgs {
   signal?: AbortSignal
 }
 
-export async function fetchPubMed(args: FetchArgs = {}): Promise<Paper[]> {
+export async function fetchPubMed(args: FetchArgs = {}): Promise<FetchResult> {
   const terms = args.terms ?? DEFAULT_TERMS
   const retmax = args.maxResults ?? 120
 
@@ -68,8 +68,10 @@ export async function fetchPubMed(args: FetchArgs = {}): Promise<Paper[]> {
     signal: args.signal,
   })
   if (!sres.ok) throw new Error(`PubMed esearch failed: ${sres.status}`)
-  const ids = ((await sres.json()) as ESearchResponse).esearchresult?.idlist ?? []
-  if (ids.length === 0) return []
+  const search = ((await sres.json()) as ESearchResponse).esearchresult
+  const ids = search?.idlist ?? []
+  const total = search?.count ? Number.parseInt(search.count, 10) : undefined
+  if (ids.length === 0) return { papers: [], total: total ?? 0, scanned: 0 }
 
   const sumParams = new URLSearchParams({
     db: 'pubmed',
@@ -111,5 +113,5 @@ export async function fetchPubMed(args: FetchArgs = {}): Promise<Paper[]> {
     paper.impactFactor = entry.impactFactor
     papers.push(paper)
   }
-  return papers
+  return { papers, total, scanned: ids.length }
 }

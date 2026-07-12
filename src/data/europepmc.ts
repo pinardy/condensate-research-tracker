@@ -1,4 +1,4 @@
-import type { Paper } from './types'
+import type { FetchResult, Paper } from './types'
 import { detectPreprintServer } from './preprint'
 import { matchJournal } from './classify'
 
@@ -13,6 +13,13 @@ export const DEFAULT_TERMS = [
   '"membraneless organelle"',
   '"membraneless organelles"',
   '"liquid-liquid phase transition"',
+  // Synonyms / variants to widen recall (added for coverage):
+  '"LLPS"',
+  '"phase-separated"',
+  '"coacervation"',
+  '"coacervate"',
+  '"liquid-liquid demixing"',
+  '"condensate formation"',
 ]
 
 export function buildQuery(
@@ -131,23 +138,27 @@ export interface FetchArgs {
   signal?: AbortSignal
 }
 
-async function fetchAll(args: FetchArgs, preprint: boolean): Promise<Paper[]> {
+async function fetchAll(args: FetchArgs, preprint: boolean): Promise<FetchResult> {
   const query = buildQuery(args.terms, { preprints: preprint, extraQuery: args.extraQuery })
   const pageSize = args.pageSize ?? 100
   const maxResults = args.maxResults ?? (preprint ? 120 : 300)
   const collected: Paper[] = []
   let cursorMark = '*'
+  let total = 0
+  let scanned = 0
 
   // Cap page count as a safety net against runaway loops.
-  for (let page = 0; page < 20; page++) {
-    const { nextCursorMark, results } = await searchPage({
+  for (let page = 0; page < 30; page++) {
+    const { hitCount, nextCursorMark, results } = await searchPage({
       query,
       cursorMark,
       pageSize,
       signal: args.signal,
     })
+    if (page === 0) total = hitCount
     if (results.length === 0) break
     for (const raw of results) {
+      scanned++
       const paper = normalizeResult(raw, preprint)
       if (!preprint) {
         const entry = matchJournal(paper)
@@ -160,15 +171,15 @@ async function fetchAll(args: FetchArgs, preprint: boolean): Promise<Paper[]> {
     if (!nextCursorMark || nextCursorMark === cursorMark) break
     cursorMark = nextCursorMark
   }
-  return collected
+  return { papers: collected, total, scanned }
 }
 
 /** Peer-reviewed Europe PMC records, filtered to the IF>=4 allowlist. */
-export function fetchEuropePmc(args: FetchArgs = {}): Promise<Paper[]> {
+export function fetchEuropePmc(args: FetchArgs = {}): Promise<FetchResult> {
   return fetchAll(args, false)
 }
 
 /** Preprints (bioRxiv/medRxiv etc.) via Europe PMC's SRC:PPR index. */
-export function fetchPreprints(args: FetchArgs = {}): Promise<Paper[]> {
+export function fetchPreprints(args: FetchArgs = {}): Promise<FetchResult> {
   return fetchAll(args, true)
 }

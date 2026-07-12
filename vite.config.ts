@@ -42,7 +42,8 @@ export default defineConfig({
               (url.origin === 'https://www.ebi.ac.uk' &&
                 url.pathname.startsWith('/europepmc/webservices/rest/')) ||
               url.origin === 'https://eutils.ncbi.nlm.nih.gov' ||
-              url.origin === 'https://api.crossref.org',
+              url.origin === 'https://api.crossref.org' ||
+              url.origin === 'https://api.openalex.org',
             handler: 'NetworkFirst',
             options: {
               cacheName: 'research-api',

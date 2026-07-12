@@ -8,8 +8,19 @@ import { SEED_PAPERS } from '../data/seed'
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type SourceStatus = 'ok' | 'empty' | 'error' | 'disabled' | 'idle'
 
+/** Per-source coverage counts surfaced in the UI. */
+export interface SourceCount {
+  /** Total matches the source reports (before our IF/allowlist filtering). */
+  total?: number
+  /** How many we kept after the allowlist. */
+  kept: number
+}
+
 /** Refresh cadence: consider data stale after one week. */
 export const STALE_MS = 7 * 24 * 60 * 60 * 1000
+
+/** How many peer-reviewed records to request per source; grows via "Load more". */
+export const PAGE_SIZE = 250
 
 interface PaperState {
   papers: Paper[]
@@ -20,6 +31,9 @@ interface PaperState {
   error: string | null
   enabledSources: SourceId[]
   sourceStatus: Record<SourceId, SourceStatus>
+  sourceCounts: Record<SourceId, SourceCount>
+  /** Current per-source fetch ceiling (raised by loadMore). */
+  fetchLimit: number
 
   /** Live "search all sources" state (not persisted). */
   searchQuery: string
@@ -28,6 +42,7 @@ interface PaperState {
 
   init: () => Promise<void>
   refresh: (force?: boolean) => Promise<void>
+  loadMore: () => Promise<void>
   setSourceEnabled: (id: SourceId, on: boolean) => void
   /** Query enabled sources for a specific topic ANDed with the field terms. */
   searchSources: (query: string) => Promise<void>
@@ -38,6 +53,9 @@ const seed = refineSeed(SEED_PAPERS)
 
 const initialSourceStatus = (): Record<SourceId, SourceStatus> =>
   Object.fromEntries(SOURCES.map((s) => [s.id, 'idle'])) as Record<SourceId, SourceStatus>
+
+const initialSourceCounts = (): Record<SourceId, SourceCount> =>
+  Object.fromEntries(SOURCES.map((s) => [s.id, { kept: 0 }])) as Record<SourceId, SourceCount>
 
 function merge(cached: Paper[]): Paper[] {
   // Seed is always included; live/cached records dedupe against it.
@@ -54,6 +72,8 @@ export const usePapers = create<PaperState>()(
       error: null,
       enabledSources: DEFAULT_ENABLED,
       sourceStatus: initialSourceStatus(),
+      sourceCounts: initialSourceCounts(),
+      fetchLimit: PAGE_SIZE,
       searchQuery: '',
       searchStatus: 'idle',
       searchResults: [],
@@ -71,18 +91,20 @@ export const usePapers = create<PaperState>()(
         if (!force && get().lastFetched && Date.now() - get().lastFetched! < STALE_MS) return
 
         const enabled = get().enabledSources
+        const limit = get().fetchLimit
         set({ status: 'loading', error: null })
 
         const active = SOURCES.filter((s) => enabled.includes(s.id))
         const results = await Promise.allSettled(
           active.map((s) =>
             s
-              .fetch({ maxResults: s.kind === 'preprint' ? 120 : 250 })
-              .then((papers) => ({ id: s.id, papers })),
+              .fetch({ maxResults: s.kind === 'preprint' ? Math.round(limit / 2) : limit })
+              .then((res) => ({ id: s.id, res })),
           ),
         )
 
         const status = { ...initialSourceStatus() }
+        const counts = initialSourceCounts()
         for (const s of SOURCES) if (!enabled.includes(s.id)) status[s.id] = 'disabled'
 
         const fresh: Paper[] = []
@@ -90,9 +112,11 @@ export const usePapers = create<PaperState>()(
         results.forEach((r, i) => {
           const id = active[i].id
           if (r.status === 'fulfilled') {
-            status[id] = r.value.papers.length ? 'ok' : 'empty'
-            if (r.value.papers.length) anyOk = true
-            fresh.push(...r.value.papers)
+            const papers = r.value.res.papers
+            status[id] = papers.length ? 'ok' : 'empty'
+            counts[id] = { total: r.value.res.total, kept: papers.length }
+            if (papers.length) anyOk = true
+            fresh.push(...papers)
           } else {
             status[id] = 'error' // network / CORS / API failure
           }
@@ -103,11 +127,17 @@ export const usePapers = create<PaperState>()(
         set({
           cached,
           sourceStatus: status,
+          sourceCounts: counts,
           lastFetched: anyOk ? Date.now() : get().lastFetched,
           papers: merge(cached),
           status: anyOk ? 'ready' : 'error',
           error: anyOk ? null : 'Could not reach any enabled source; showing saved data.',
         })
+      },
+
+      loadMore: async () => {
+        set({ fetchLimit: get().fetchLimit + PAGE_SIZE })
+        await get().refresh(true)
       },
 
       setSourceEnabled: (id, on) => {
@@ -132,7 +162,7 @@ export const usePapers = create<PaperState>()(
         )
         // Ignore this response if the user changed the query meanwhile.
         if (get().searchQuery !== q) return
-        const fresh = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
+        const fresh = results.flatMap((r) => (r.status === 'fulfilled' ? r.value.papers : []))
         const anyFulfilled = results.some((r) => r.status === 'fulfilled')
         set({
           searchResults: mergeAndClassify(fresh),
@@ -144,16 +174,17 @@ export const usePapers = create<PaperState>()(
     }),
     {
       name: 'crt-papers',
-      version: 2,
+      version: 3,
       partialize: (s) => ({
         cached: s.cached,
         lastFetched: s.lastFetched,
         enabledSources: s.enabledSources,
       }),
       migrate: (persisted) => {
-        // v1 had no source fields; drop the old cache so records re-fetch clean.
+        // Older versions predate some sources; reset cache and re-enable all
+        // sources so newly-added ones (e.g. OpenAlex) are included.
         const p = (persisted ?? {}) as Partial<PaperState>
-        return { ...p, cached: [], lastFetched: null } as PaperState
+        return { ...p, cached: [], lastFetched: null, enabledSources: DEFAULT_ENABLED } as PaperState
       },
       onRehydrateStorage: () => (state) => {
         if (state) state.papers = merge(state.cached)

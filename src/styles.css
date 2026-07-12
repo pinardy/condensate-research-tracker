@@ -753,3 +753,27 @@ a {
   background: var(--animal-bg);
   border-color: color-mix(in srgb, var(--animal) 40%, var(--border));
 }
+
+.source-chip__count {
+  font-size: 0.7rem;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+.refresh-status__coverage {
+  color: var(--text-dim);
+  cursor: help;
+  border-bottom: 1px dotted var(--text-dim);
+}
+
+.load-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 28px 0 8px;
+  text-align: center;
+}
+.load-more__hint {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+}

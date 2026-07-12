@@ -52,9 +52,13 @@ export default function App() {
           <a href="https://pubmed.ncbi.nlm.nih.gov" target="_blank" rel="noreferrer">
             PubMed
           </a>
-          {' '}&amp;{' '}
+          ,{' '}
           <a href="https://www.crossref.org" target="_blank" rel="noreferrer">
             Crossref
+          </a>
+          {' '}&amp;{' '}
+          <a href="https://openalex.org" target="_blank" rel="noreferrer">
+            OpenAlex
           </a>
           , plus bioRxiv/medRxiv preprints. Impact Factor is approximated by a curated
           journal allowlist.

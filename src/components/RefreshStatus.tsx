@@ -1,3 +1,4 @@
+import { SOURCES } from '../data/sources'
 import { usePapers } from '../store/papers'
 
 function formatWhen(ts: number | null): string {
@@ -17,6 +18,20 @@ export function RefreshStatus() {
   const error = usePapers((s) => s.error)
   const refresh = usePapers((s) => s.refresh)
   const count = usePapers((s) => s.papers.length)
+  const enabledSources = usePapers((s) => s.enabledSources)
+  const sourceCounts = usePapers((s) => s.sourceCounts)
+
+  // Coverage: how many the sources reported vs how many passed the IF filter.
+  let matched = 0
+  let hasTotals = false
+  for (const s of SOURCES) {
+    if (!enabledSources.includes(s.id)) continue
+    const c = sourceCounts[s.id]
+    if (c?.total != null) {
+      matched += c.total
+      hasTotals = true
+    }
+  }
 
   return (
     <div className="refresh-status">
@@ -27,6 +42,15 @@ export function RefreshStatus() {
           <span className="refresh-status__err" title={error ?? ''}>
             {' '}
             · showing saved data (offline)
+          </span>
+        )}
+        {hasTotals && status === 'ready' && (
+          <span
+            className="refresh-status__coverage"
+            title="Sources reported this many topic matches in total; only papers from IF≥4 journals within the current fetch limit are shown. Use “Load more” or enable more sources to widen coverage."
+          >
+            {' '}
+            · ~{matched.toLocaleString()} matches across sources
           </span>
         )}
       </div>

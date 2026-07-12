@@ -7,7 +7,16 @@ export const AREA_LABELS: Record<ResearchArea, string> = {
 }
 
 /** Data-source adapters the app can fetch from. */
-export type SourceId = 'europepmc' | 'pubmed' | 'crossref' | 'preprints'
+export type SourceId = 'europepmc' | 'pubmed' | 'crossref' | 'openalex' | 'preprints'
+
+/** Result of a source fetch, carrying coverage counts for transparency. */
+export interface FetchResult {
+  papers: Paper[]
+  /** Total matches the source reports for the query (before our filtering). */
+  total?: number
+  /** How many records we examined (fetched) before allowlist filtering. */
+  scanned?: number
+}
 
 /** A normalized research paper as displayed in the app. */
 export interface Paper {
