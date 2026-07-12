@@ -1,13 +1,17 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import type { Paper } from '../data/types'
 import { AREA_LABELS } from '../data/types'
 import { SOURCE_BY_ID } from '../data/sources'
-import { usePapers } from '../store/papers'
 import { BookmarkButton } from './BookmarkButton'
 
-export function PaperCard({ paper }: { paper: Paper }) {
+export const PaperCard = memo(function PaperCard({
+  paper,
+  isNew,
+}: {
+  paper: Paper
+  isNew: boolean
+}) {
   const [open, setOpen] = useState(false)
-  const isNew = usePapers((s) => s.newIds.includes(paper.id))
   const abstract = paper.abstract?.trim()
   const isLong = (abstract?.length ?? 0) > 280
   const shown = !abstract
@@ -71,4 +75,4 @@ export function PaperCard({ paper }: { paper: Paper }) {
       </div>
     </article>
   )
-}
+})

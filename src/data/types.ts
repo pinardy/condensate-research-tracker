@@ -16,6 +16,11 @@ export interface FetchResult {
   total?: number
   /** How many records we examined (fetched) before allowlist filtering. */
   scanned?: number
+  /**
+   * Opaque token to resume paging from on the next fetch (passed back as
+   * `cursor`). Absent/undefined means the source has no more results.
+   */
+  nextCursor?: string
 }
 
 /** A normalized research paper as displayed in the app. */

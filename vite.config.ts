@@ -38,6 +38,10 @@ export default defineConfig({
         runtimeCaching: [
           {
             // Live research APIs: fresh when online, cached fallback when offline.
+            // NetworkFirst (not StaleWhileRevalidate) because the store already
+            // gates these calls behind a weekly staleness check — when it does
+            // fetch, it genuinely wants fresh data, and serving the SW cache
+            // would leave displayed papers one refresh cycle behind.
             urlPattern: ({ url }) =>
               (url.origin === 'https://www.ebi.ac.uk' &&
                 url.pathname.startsWith('/europepmc/webservices/rest/')) ||
@@ -47,7 +51,7 @@ export default defineConfig({
             handler: 'NetworkFirst',
             options: {
               cacheName: 'research-api',
-              networkTimeoutSeconds: 8,
+              networkTimeoutSeconds: 4,
               expiration: {
                 maxEntries: 96,
                 maxAgeSeconds: 60 * 60 * 24 * 14, // 2 weeks

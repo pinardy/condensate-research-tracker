@@ -54,6 +54,8 @@ export interface FetchArgs {
   fromPubDate?: string
   extraQuery?: string
   signal?: AbortSignal
+  /** Row offset to resume from (from a prior nextCursor); '0' = start. */
+  cursor?: string
 }
 
 export async function fetchCrossref(args: FetchArgs = {}): Promise<FetchResult> {
@@ -66,6 +68,7 @@ export async function fetchCrossref(args: FetchArgs = {}): Promise<FetchResult> 
     .filter(Boolean)
     .join(' ')
   const rows = args.maxResults ?? 150
+  const offset = Number.parseInt(args.cursor ?? '', 10) || 0
   const from = args.fromPubDate ?? `${new Date().getFullYear() - 3}-01-01`
 
   const params = new URLSearchParams({
@@ -74,6 +77,7 @@ export async function fetchCrossref(args: FetchArgs = {}): Promise<FetchResult> 
     sort: 'published',
     order: 'desc',
     rows: String(rows),
+    offset: String(offset),
     select: 'DOI,title,container-title,ISSN,author,abstract,published,issued,type',
     mailto: MAILTO,
   })
@@ -111,5 +115,7 @@ export async function fetchCrossref(args: FetchArgs = {}): Promise<FetchResult> 
     if (entry) paper.impactFactor = entry.impactFactor // IF filter applied client-side
     papers.push(paper)
   }
-  return { papers, total, scanned: items.length }
+  // A full page implies more rows remain; resume from the next offset.
+  const nextCursor = items.length === rows ? String(offset + rows) : undefined
+  return { papers, total, scanned: items.length, nextCursor }
 }

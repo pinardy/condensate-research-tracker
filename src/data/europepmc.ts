@@ -136,6 +136,8 @@ export interface FetchArgs {
   /** Extra topic to AND into the query (live "search all sources"). */
   extraQuery?: string
   signal?: AbortSignal
+  /** cursorMark to resume from (from a prior fetch's nextCursor); '*' = start. */
+  cursor?: string
 }
 
 async function fetchAll(args: FetchArgs, preprint: boolean): Promise<FetchResult> {
@@ -143,9 +145,10 @@ async function fetchAll(args: FetchArgs, preprint: boolean): Promise<FetchResult
   const pageSize = args.pageSize ?? 100
   const maxResults = args.maxResults ?? (preprint ? 120 : 300)
   const collected: Paper[] = []
-  let cursorMark = '*'
+  let cursorMark = args.cursor || '*'
   let total = 0
   let scanned = 0
+  let nextCursor: string | undefined
 
   // Cap page count as a safety net against runaway loops.
   for (let page = 0; page < 30; page++) {
@@ -168,11 +171,15 @@ async function fetchAll(args: FetchArgs, preprint: boolean): Promise<FetchResult
       }
       collected.push(paper)
     }
-    if (collected.length >= maxResults) break
     if (!nextCursorMark || nextCursorMark === cursorMark) break
     cursorMark = nextCursorMark
+    // Reached this batch's ceiling but more pages remain: hand back the cursor.
+    if (collected.length >= maxResults) {
+      nextCursor = cursorMark
+      break
+    }
   }
-  return { papers: collected, total, scanned }
+  return { papers: collected, total, scanned, nextCursor }
 }
 
 /** Peer-reviewed Europe PMC records, filtered to the IF>=4 allowlist. */

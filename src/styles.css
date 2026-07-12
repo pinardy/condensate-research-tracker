@@ -280,6 +280,13 @@ a {
   border-radius: var(--radius);
   padding: 16px;
   box-shadow: var(--shadow);
+  /* Skip layout/paint for cards scrolled off-screen; the estimate keeps the
+     scrollbar stable before a card is first rendered. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 260px;
+}
+.paper-list__sentinel {
+  height: 1px;
 }
 .paper-card__head {
   display: flex;

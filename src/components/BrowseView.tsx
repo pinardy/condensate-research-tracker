@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import type { Paper, ResearchArea } from '../data/types'
 import { usePapers } from '../store/papers'
 import { AreaTabs, type AreaFilter } from './AreaTabs'
@@ -19,6 +19,7 @@ const AREAS: AreaFilter[] = ['all', 'plant', 'animal', 'biophysics', 'preprints'
 export function BrowseView() {
   const papers = usePapers((s) => s.papers)
   const enabledSources = usePapers((s) => s.enabledSources)
+  const sourceCursors = usePapers((s) => s.sourceCursors)
   const init = usePapers((s) => s.init)
   const loadMore = usePapers((s) => s.loadMore)
   const status = usePapers((s) => s.status)
@@ -77,11 +78,25 @@ export function BrowseView() {
 
   const searchMode = searchQuery.length > 0
   const newSet = useMemo(() => new Set(newIds), [newIds])
+  // A source with a null cursor is exhausted; anything else may have more pages.
+  const hasMore = enabledSources.some((id) => sourceCursors[id] !== null)
+  // Filtering runs against the deferred value so typing stays responsive.
+  const deferredSearch = useDeferredValue(search)
 
   const base = useMemo(() => {
     const src = searchMode ? searchResults : papers
     return src.filter((p) => p.providers.some((id) => enabledSources.includes(id)))
   }, [searchMode, searchResults, papers, enabledSources])
+
+  // Lowercased search text per paper, rebuilt only when the dataset changes.
+  const haystacks = useMemo(() => {
+    const m = new Map<string, string>()
+    const src = searchMode ? searchResults : papers
+    for (const p of src) {
+      m.set(p.id, `${p.title} ${p.authors} ${p.journal} ${p.abstract ?? ''}`.toLowerCase())
+    }
+    return m
+  }, [searchMode, searchResults, papers])
 
   const passesQuality = (p: Paper) =>
     p.isPreprint || minIf === 0 || (p.impactFactor != null && p.impactFactor >= minIf)
@@ -110,7 +125,7 @@ export function BrowseView() {
   const years = useMemo(() => [...new Set(quality.map((p) => p.year))].sort((a, b) => b - a), [quality])
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
+    const q = deferredSearch.trim().toLowerCase()
     return quality.filter((p) => {
       if (area === 'preprints') {
         if (!p.isPreprint) return false
@@ -121,12 +136,12 @@ export function BrowseView() {
       if (newOnly && !newSet.has(p.id)) return false
       if (year !== 'all' && p.year !== year) return false
       if (!searchMode && q) {
-        const hay = `${p.title} ${p.authors} ${p.journal} ${p.abstract ?? ''}`.toLowerCase()
+        const hay = haystacks.get(p.id) ?? ''
         if (!hay.includes(q)) return false
       }
       return true
     })
-  }, [quality, area, year, search, searchMode, newOnly, newSet])
+  }, [quality, area, year, deferredSearch, searchMode, newOnly, newSet, haystacks])
 
   function copyLink() {
     void navigator.clipboard?.writeText(window.location.href).then(() => {
@@ -254,9 +269,9 @@ export function BrowseView() {
           IF ≥ 4 journal filter. Treat findings as preliminary.
         </p>
       )}
-      <PaperList papers={filtered} sort={sort} />
+      <PaperList papers={filtered} sort={sort} newSet={newSet} />
 
-      {!searchMode && status !== 'idle' && (
+      {!searchMode && status !== 'idle' && hasMore && (
         <div className="load-more">
           <button
             type="button"
@@ -267,7 +282,7 @@ export function BrowseView() {
             {status === 'loading' ? 'Loading…' : 'Load more from sources'}
           </button>
           <span className="load-more__hint">
-            Widens the per-source fetch limit. Enable more sources above for broader coverage.
+            Fetches the next page from each source. Enable more sources above for broader coverage.
           </span>
         </div>
       )}

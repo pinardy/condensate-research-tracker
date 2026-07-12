@@ -50,17 +50,21 @@ export interface FetchArgs {
   maxResults?: number
   extraQuery?: string
   signal?: AbortSignal
+  /** retstart offset to resume from (from a prior nextCursor); '0' = start. */
+  cursor?: string
 }
 
 export async function fetchPubMed(args: FetchArgs = {}): Promise<FetchResult> {
   const terms = args.terms ?? DEFAULT_TERMS
   const retmax = args.maxResults ?? 120
+  const retstart = Number.parseInt(args.cursor ?? '', 10) || 0
 
   const searchParams = new URLSearchParams({
     db: 'pubmed',
     term: buildTerm(terms, args.extraQuery),
     sort: 'date',
     retmax: String(retmax),
+    retstart: String(retstart),
     retmode: 'json',
   })
   const sres = await fetch(`${ESEARCH}?${searchParams.toString()}`, {
@@ -72,6 +76,8 @@ export async function fetchPubMed(args: FetchArgs = {}): Promise<FetchResult> {
   const ids = search?.idlist ?? []
   const total = search?.count ? Number.parseInt(search.count, 10) : undefined
   if (ids.length === 0) return { papers: [], total: total ?? 0, scanned: 0 }
+  // A full page implies more ids remain; resume from the next retstart.
+  const nextCursor = ids.length === retmax ? String(retstart + retmax) : undefined
 
   const sumParams = new URLSearchParams({
     db: 'pubmed',
@@ -112,5 +118,5 @@ export async function fetchPubMed(args: FetchArgs = {}): Promise<FetchResult> {
     if (entry) paper.impactFactor = entry.impactFactor // IF filter applied client-side
     papers.push(paper)
   }
-  return { papers, total, scanned: ids.length }
+  return { papers, total, scanned: ids.length, nextCursor }
 }
